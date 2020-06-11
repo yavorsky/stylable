@@ -44,6 +44,7 @@ export default function metadataLoader(this: webpackLoader.LoaderContext, conten
     stylable =
         stylable ||
         Stylable.create({
+            // requireModule: require,
             projectRoot: this.rootContext,
             fileSystem: this.fs,
             mode: this._compiler.options.mode === 'development' ? 'development' : 'production',
@@ -54,11 +55,13 @@ export default function metadataLoader(this: webpackLoader.LoaderContext, conten
 
     const meta = stylable.fileProcessor.processContent(content, this.resourcePath);
 
-    const usedMeta = collectDependenciesDeep(meta);
+    const usedMeta = collectDependenciesDeep(stylable, meta);
 
     addWebpackWatchDependencies(this, usedMeta);
 
     const hashes = createContentHashPerMeta(usedMeta.keys());
+
+    bundleJSDependencies(stylable, usedMeta);
 
     const stylesheetMapping = rewriteImports(usedMeta, hashes);
 
@@ -74,6 +77,19 @@ export default function metadataLoader(this: webpackLoader.LoaderContext, conten
             entry: `/${ensureHash(meta, hashes)}.st.css`,
         })
     );
+}
+
+async function bundleJSDependencies(stylable: Stylable,usedMeta: Map<StylableMeta, ResolvedImport[]>) {
+    for (const [meta, resolvedImports] of usedMeta) {
+        const jsImports = resolvedImports.filter((x) => x.resolved?._kind === 'js');
+        
+        const context = jsImports[0].stImport.context
+        const request = jsImports[0].stImport.fromRelative
+        const def = jsImports[0].stImport.defaultExport
+        const named = jsImports[0].stImport.named
+
+        stylable.resolvePath(context, request)
+    }
 }
 
 function loadLocalConfigLoader() {
@@ -185,6 +201,7 @@ type ResolvedImport = {
 };
 
 function collectDependenciesDeep(
+    stylable: Stylable,
     meta: StylableMeta,
     out = new Map<StylableMeta, ResolvedImport[]>()
 ) {
@@ -196,9 +213,14 @@ function collectDependenciesDeep(
 
     for (const stImport of meta.imports) {
         const resolved = stylable.resolver.resolveImported(stImport, '');
+        if (!resolved) {
+            throw new Error(
+                `Cannot resolve dependency of "${stImport.fromRelative}" in "${meta.source}"`
+            );
+        }
         imports.push({ stImport, resolved });
-        if (resolved && resolved._kind === 'css') {
-            collectDependenciesDeep(resolved.meta, out);
+        if (resolved._kind === 'css') {
+            collectDependenciesDeep(stylable, resolved.meta, out);
         }
     }
     return out;

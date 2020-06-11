@@ -1,10 +1,22 @@
 
+@custom-selector :--test .test;
+
 :import {
     -st-from: "./comp.st.css";
     -st-default: Comp;
 }
 
+
+:import {
+    -st-from: "./format.js";
+    -st-named: echo;
+}
+
 .root {
     -st-extends: Comp;
-    color: green;
+    color: echo(green);
+}
+
+:--test {
+    background: red;
 }
