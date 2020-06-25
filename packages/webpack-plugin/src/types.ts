@@ -7,6 +7,7 @@ import {
 } from '@stylable/core';
 import { StylableOptimizer } from '@stylable/optimizer';
 import webpack from 'webpack';
+import { resolveNamespace } from '@stylable/node';
 
 export interface StylableWebpackPluginOptions {
     filename: string;
@@ -49,7 +50,7 @@ export interface StylableWebpackPluginOptions {
         | ((results: StylableResults, module: StylableModule, stylable: Stylable) => void)
         | null;
     plugins?: Array<{ apply: (compiler: webpack.Compiler, stylablePlugin: any) => void }>;
-    resolveNamespace?(): string;
+    resolveNamespace?: typeof resolveNamespace;
     requireModule(path: string): any;
 }
 
