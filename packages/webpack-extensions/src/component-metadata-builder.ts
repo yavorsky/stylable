@@ -31,7 +31,7 @@ export interface ComponentsMetadata {
 }
 
 export class ComponentMetadataBuilder {
-    private output: ComponentsMetadata;
+    public output: ComponentsMetadata;
     constructor(private context: string, name: string, version: string) {
         this.output = {
             version,

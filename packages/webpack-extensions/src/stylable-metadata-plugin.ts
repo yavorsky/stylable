@@ -5,7 +5,11 @@ import { RawSource } from 'webpack-sources';
 import { compileAsEntry, exec } from './compile-as-entry';
 import { ComponentConfig, ComponentMetadataBuilder } from './component-metadata-builder';
 
-import { getCSSComponentLogicModule } from '@stylable/webpack-plugin';
+import {
+    getCSSComponentLogicModule,
+    StylableModule,
+    StylableWebpackPlugin,
+} from '@stylable/webpack-plugin';
 import { hashContent } from './hash-content-util';
 
 export interface MetadataOptions {
@@ -20,8 +24,12 @@ export interface MetadataOptions {
         component: any,
         componentConfig: ComponentConfig
     ) => string;
+    onlyIncludeEditableComponents?: boolean;
     mode?: 'json' | 'cjs' | 'amd:static' | 'amd:factory';
 }
+
+import { collectDependenciesDeep } from './collect-st-css-dependencies';
+import { Stylable, StylableMeta } from '@stylable/core';
 
 export class StylableMetadataPlugin {
     constructor(private options: MetadataOptions) {}
@@ -52,7 +60,11 @@ export class StylableMetadataPlugin {
         }
     }
     private async createMetadataAssets(compilation: webpack.compilation.Compilation) {
-        const stylableModules = compilation.modules.filter((m) => m.type === 'stylable');
+        const stylableModules: StylableModule[] = compilation.modules.filter(
+            (m) => m.type === 'stylable'
+        );
+
+        const stylable = getStylableFromWebpack(compilation);
 
         const builder = new ComponentMetadataBuilder(
             this.options.context || compilation.compiler.options.context || process.cwd(),
@@ -61,14 +73,17 @@ export class StylableMetadataPlugin {
         );
 
         for (const module of stylableModules) {
-            const namespace = module.buildInfo.stylableMeta.namespace;
+            const meta = module.buildInfo.stylableMeta;
+            const namespace = meta.namespace;
             const depth = module.buildInfo.runtimeInfo.depth;
 
-            builder.addSource(
-                module.resource,
-                compilation.inputFileSystem.readFileSync(module.resource).toString(),
-                { namespace, depth }
-            );
+            if (!this.options.onlyIncludeEditableComponents) {
+                builder.addSource(
+                    module.resource,
+                    compilation.inputFileSystem.readFileSync(module.resource).toString(),
+                    { namespace, depth }
+                );
+            }
 
             const component = getCSSComponentLogicModule(module);
             if (!component) {
@@ -82,6 +97,28 @@ export class StylableMetadataPlugin {
             }
 
             builder.addComponent(module.resource, componentConfig, namespace);
+
+            if (this.options.onlyIncludeEditableComponents) {
+                if (!stylable) {
+                    throw new Error('Could not find Stylable instance in webpack compiler');
+                }
+                const usedImports = collectDependenciesDeep(stylable, meta);
+                for (const usedMeta of usedImports.keys()) {
+                    const builtModule = stylableModules.find(
+                        ({ resource }) => resource === usedMeta.source
+                    );
+                    if (!builtModule) {
+                        throw new Error(`Could not find webpack module for ${usedMeta.source}`);
+                    }
+                    const depth = builtModule.buildInfo.runtimeInfo.depth;
+                    const namespace = builtModule.buildInfo.stylableMeta.namespace;
+                    builder.addSource(
+                        usedMeta.source,
+                        compilation.inputFileSystem.readFileSync(usedMeta.source).toString(),
+                        { namespace, depth }
+                    );
+                }
+            }
 
             this.handleVariants(
                 componentConfig,
@@ -111,6 +148,27 @@ export class StylableMetadataPlugin {
         }
 
         if (builder.hasPackages()) {
+            // if (this.options.onlyIncludeEditableComponents) {
+            //     if (!stylable) {
+            //         throw new Error('Could not find Stylable instance in webpack compiler');
+            //     }
+            //     const allUsedSources = new Set<string>();
+            //     for (const compDef of Object.values(builder.output.components)) {
+            //         const meta = stylable.fileProcessor.cache[compDef.stylesheetPath];
+
+            //         const usedImports = collectDependenciesDeep(stylable, meta.value).keys();
+            //         for (const m of usedImports) {
+            //             allUsedSources.add(m.source);
+            //         }
+            //     }
+
+            //     for (const k in builder.output.fs) {
+            //         if (!allUsedSources.has(k)) {
+            //             delete builder.output.fs[k];
+            //         }
+            //     }
+            // }
+
             builder.createIndex();
             const jsonMode = !this.options.mode || this.options.mode === 'json';
             const jsonSource = JSON.stringify(builder.build(), null, 2);
@@ -188,5 +246,14 @@ export class StylableMetadataPlugin {
                 });
             });
         }
+    }
+}
+
+function getStylableFromWebpack(compilation: webpack.compilation.Compilation) {
+    const plugin = compilation.compiler.options.plugins?.find((plugin) => {
+        return plugin.constructor.name === StylableWebpackPlugin.name;
+    });
+    if (plugin) {
+        return (plugin as any).stylable as Stylable;
     }
 }
