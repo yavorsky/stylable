@@ -1,5 +1,6 @@
 import {
     generateStylableRoot,
+    generateStylableResult,
     matchAllRulesAndDeclarations,
     matchRuleAndDeclaration,
 } from '@stylable/core-test-kit';
@@ -162,6 +163,37 @@ describe('Javascript Mixins', () => {
 
         expect(rule.selector).to.equal('.style__container Test');
         expect(rule.nodes[0].toString()).to.equal('color: red');
+    });
+
+    it('simple mixin with context', () => {
+        const { meta } = generateStylableResult({
+            entry: `/style.st.css`,
+            files: {
+                '/style.st.css': {
+                    content: `
+                    :import {
+                        -st-from: "./mixin";
+                        -st-default: mixin;
+                    }
+                    .container {
+                        -st-mixin: mixin;
+                    }
+                `,
+                },
+                '/mixin.js': {
+                    content: `
+                    module.exports = function() {
+                        return {
+                            [\`--\${this.meta.namespace}-x\`]: "red"
+                        }
+                    }
+                `,
+                },
+            },
+        });
+
+        const rule = meta.outputAst!.nodes[0] as postcss.Rule;
+        expect(rule.nodes[0].toString()).to.equal(`--${meta.namespace}-x: red`);
     });
 
     it('simple mixin with fallback', () => {

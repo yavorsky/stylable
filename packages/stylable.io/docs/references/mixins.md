@@ -126,13 +126,16 @@ Here is an example of using a variable in a CSS mixin and how it can be overridd
 }
 ```
 
-## Partial CSS mixins
+## Partial CSS mixins (Experimental)
 
 Partial CSS Mixins (`-st-partial-mixin`) is a continuation of the idea of mixins with parameter overrides. (as described above)
 
 Where a regular `-st-mixin` includes all declarations inside the targeted mixed-in class, partial mixins enable you to pass through overriding variable values and mix in only declarations that would be affected by such an override. 
 
 For a partial mixin to work, at least one overriding variable must be provided, additional ones being optional.
+
+>**Note**  
+>partial mixins has an inherited problem of changing the order of css rules. Because of that it has a narrow use cases that it fits to.    
 
 ### Example
 ```css
@@ -201,7 +204,14 @@ A JS mixin returns a CSS fragment which can contain multiple declarations with o
 
 Arguments are passed to the mixin as a string argument and it's the mixin's responsibility to parse them.
 
+### JavaScript mixins signature
+
+```ts
+    function mixin(this: { meta: StylableMeta, resolver: StylableResolver }, args: string[]): CSSObject {}
+```
+
 Here is an example of a mixin receiving multiple arguments and returning multiple declarations into the target ruleset.
+
 
 ```js
 /* file my-mixin.js */

@@ -136,7 +136,10 @@ function handleJSMixin(
     rule: postcss.Rule,
     variableOverride?: Record<string, string>
 ) {
-    const res = mixinFunction((mix.mixin.options as any[]).map((v) => v.value));
+    const res = mixinFunction.call(
+        { meta, resolver: transformer.resolver },
+        (mix.mixin.options as any[]).map((v) => v.value)
+    );
     const mixinRoot = cssObjectToAst(res).root;
 
     mixinRoot.walkDecls((decl) => {

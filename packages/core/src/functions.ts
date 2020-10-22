@@ -277,7 +277,7 @@ export function processDeclarationValue(
                         if (formatter && formatter._kind === 'js') {
                             try {
                                 parsedNode.resolvedValue = formatter.symbol.apply(
-                                    null,
+                                    { meta, resolver },
                                     formatterArgs
                                 );
                                 if (valueHook && typeof parsedNode.resolvedValue === 'string') {
